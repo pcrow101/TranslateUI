@@ -1,4 +1,4 @@
-//
+ //
 //  TranslateUIUITests.swift
 //  TranslateUIUITests
 //
@@ -14,6 +14,7 @@ import XCTest
 /// *not* asserted: it depends on the German language pack being downloaded on
 /// the host, which isn't guaranteed on a clean machine or in CI. Everything up
 /// to and including the on-screen result and the export render is covered.
+@MainActor
 final class TranslateUIUITests: XCTestCase {
 
     override func setUpWithError() throws {

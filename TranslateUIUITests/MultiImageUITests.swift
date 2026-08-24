@@ -13,6 +13,7 @@ import XCTest
 /// live `.translationTask` sessions — so it only produces a meaningful result
 /// on a machine where the German and Italian language packs are installed. If
 /// they aren't, the test skips rather than reporting a false failure.
+@MainActor
 final class MultiImageUITests: XCTestCase {
 
     /// Words that must not survive to the translated column.

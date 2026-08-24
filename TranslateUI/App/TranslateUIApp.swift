@@ -39,6 +39,20 @@ struct TranslateUIApp: App {
                     store.showsFileImporter = true
                 }
                 .keyboardShortcut("o")
+
+                Divider()
+
+                Button("Capture Window") {
+                    Task { await store.captureWindow() }
+                }
+                .keyboardShortcut("w", modifiers: [.command, .shift])
+                .disabled(store.isImporting)
+
+                Button("Capture Area") {
+                    Task { await store.captureArea() }
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .disabled(store.isImporting)
             }
 
             CommandGroup(after: .pasteboard) {

@@ -49,6 +49,7 @@ struct HelpContentTests {
     func declaredIDsResolve() {
         let declared = [
             HelpContent.ID.gettingStarted,
+            HelpContent.ID.capturing,
             HelpContent.ID.languages,
             HelpContent.ID.reading,
             HelpContent.ID.editing,
@@ -79,7 +80,8 @@ struct HelpContentTests {
             .languageUnsupported(.italian),
             .languageNeedsDownload(.german),
             .languageNeedsDownload(.italian),
-            .translationsFailed(count: 3)
+            .translationsFailed(count: 3),
+            .screenCapturePermissionDenied()
         ]
 
         for alert in alerts {
@@ -110,7 +112,8 @@ struct HelpContentTests {
             ("slow", HelpContent.ID.performance),
             ("failed", HelpContent.ID.troubleshooting),
             ("overlay", HelpContent.ID.reading),
-            ("drag", HelpContent.ID.gettingStarted)
+            ("drag", HelpContent.ID.gettingStarted),
+            ("capture", HelpContent.ID.capturing)
         ]
     )
     func searchFindsExpectedTopic(query: String, expected: HelpTopic.ID) {
@@ -131,7 +134,7 @@ struct HelpContentTests {
 
     @Test("The number of topics is what the UI test expects")
     func topicCountIsStable() {
-        #expect(HelpContent.topics.count == 9, "update HelpUITests.topicCount to match")
+        #expect(HelpContent.topics.count == 10, "update HelpUITests.topicCount to match")
     }
 
     @Test("Search ignores capitalisation")
@@ -174,7 +177,7 @@ struct HelpContentTests {
             }
 
         // These are the key equivalents actually registered in the menus.
-        for expected in ["⌘O", "⌘R", "⇧⌘C", "⌘E", "⌘?"] {
+        for expected in ["⌘O", "⌘R", "⇧⌘C", "⌘E", "⌘?", "⇧⌘W", "⇧⌘A"] {
             #expect(listed.contains(expected), "\(expected) is missing from the shortcuts topic")
         }
     }

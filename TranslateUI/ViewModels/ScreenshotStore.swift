@@ -28,14 +28,21 @@ final class ScreenshotStore {
     private let glossaryCoordinator: GlossaryCoordinator
     private let cache: ResultCache
     private let settings: AppSettings
+    private let screenCapture: any ScreenCapturing
 
     let glossary: Glossary
 
-    init(settings: AppSettings, glossary: Glossary = Glossary(), cache: ResultCache = .shared) {
+    init(
+        settings: AppSettings,
+        glossary: Glossary = Glossary(),
+        cache: ResultCache = .shared,
+        screenCapture: (any ScreenCapturing)? = nil
+    ) {
         self.settings = settings
         self.glossary = glossary
         self.cache = cache
         self.glossaryCoordinator = GlossaryCoordinator(glossary: glossary)
+        self.screenCapture = screenCapture ?? ScreenCaptureService()
     }
 
     // MARK: - State
@@ -95,6 +102,43 @@ final class ScreenshotStore {
         defer { isImporting = false }
 
         apply(await importer.load(data: data, name: name))
+    }
+
+    // MARK: - Screen capture
+
+    /// Presents the system window picker and imports the captured window.
+    func captureWindow() async {
+        await performCapture { try await self.screenCapture.captureWindow() }
+    }
+
+    /// Presents the area selection overlay and imports the captured region.
+    func captureArea() async {
+        await performCapture { try await self.screenCapture.captureArea() }
+    }
+
+    private func performCapture(_ operation: () async throws -> LoadedImage?) async {
+        isImporting = true
+        defer { isImporting = false }
+
+        do {
+            guard let image = try await operation() else { return }
+            apply(ScreenshotImporter.Outcome(images: [image]))
+            // A fresh capture should become the active screenshot — otherwise
+            // the user is left looking at whatever was on screen before.
+            // `apply` only auto-selects when nothing is selected yet; match by
+            // content hash so this also works when the capture deduplicated
+            // onto an existing import.
+            if let match = screenshots.first(where: { $0.contentHash == image.contentHash }) {
+                selectionID = match.id
+            }
+            // The overlay/picker deactivates the app; make sure the new
+            // screenshot is visible without a Dock click.
+            NSApp.activate(ignoringOtherApps: true)
+        } catch is ScreenCapturePermissionDenied {
+            alertCenter.post(.screenCapturePermissionDenied())
+        } catch {
+            report(error)
+        }
     }
 
     private func apply(_ outcome: ScreenshotImporter.Outcome) {
@@ -455,6 +499,12 @@ final class ScreenshotStore {
             await reanalyzeAll()
         case .openLanguageSettings:
             if let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+        case .openScreenRecordingSettings:
+            if let url = URL(
+                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+            ) {
                 NSWorkspace.shared.open(url)
             }
         }

@@ -62,14 +62,16 @@ enum TestFixtures {
     @MainActor
     static func store(
         settings: AppSettings = AppSettings(defaults: UserDefaults(suiteName: UUID().uuidString)!),
-        glossary: Glossary = Glossary(fileURL: nil)
+        glossary: Glossary = Glossary(fileURL: nil),
+        screenCapture: (any ScreenCapturing)? = nil
     ) -> ScreenshotStore {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "TranslateUITests-\(UUID().uuidString)", directoryHint: .isDirectory)
         return ScreenshotStore(
             settings: settings,
             glossary: glossary,
-            cache: ResultCache(directory: directory)
+            cache: ResultCache(directory: directory),
+            screenCapture: screenCapture
         )
     }
 

@@ -23,6 +23,8 @@ nonisolated struct PipelineAlert: Identifiable, Hashable, Sendable {
         case reanalyze
         /// Open Language & Region in System Settings.
         case openLanguageSettings
+        /// Open Privacy ▸ Screen Recording in System Settings.
+        case openScreenRecordingSettings
 
         var title: String {
             switch self {
@@ -33,6 +35,8 @@ nonisolated struct PipelineAlert: Identifiable, Hashable, Sendable {
             case .reanalyze:
                 String(localized: "Re-analyze")
             case .openLanguageSettings:
+                String(localized: "Open Settings")
+            case .openScreenRecordingSettings:
                 String(localized: "Open Settings")
             }
         }
@@ -86,6 +90,21 @@ nonisolated struct PipelineAlert: Identifiable, Hashable, Sendable {
             symbol: "exclamationmark.arrow.triangle.2.circlepath",
             actions: [.retryFailed],
             helpTopic: HelpContent.ID.troubleshooting
+        )
+    }
+
+    static func screenCapturePermissionDenied() -> PipelineAlert {
+        PipelineAlert(
+            id: "screen-capture-denied",
+            severity: .error,
+            title: String(localized: "Screen recording isn’t allowed"),
+            message: String(
+                localized:
+                    "Turn on Screen Recording for Translate UI in System Settings, then try capturing again."
+            ),
+            symbol: "lock.slash",
+            actions: [.openScreenRecordingSettings],
+            helpTopic: HelpContent.ID.capturing
         )
     }
 

@@ -6,10 +6,11 @@
 import XCTest
 
 /// Covers the Help menu and the help book window.
+@MainActor
 final class HelpUITests: XCTestCase {
 
     /// Kept in step with `HelpContent.topics` by `HelpContentTests`.
-    private static let topicCount = 9
+    private static let topicCount = 10
 
     override func setUpWithError() throws {
         continueAfterFailure = false

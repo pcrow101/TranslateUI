@@ -14,6 +14,7 @@ nonisolated enum HelpContent {
     /// Stable ids for topics referenced from elsewhere in the app.
     enum ID {
         static let gettingStarted = "getting-started"
+        static let capturing = "capturing-from-screen"
         static let languages = "languages"
         static let reading = "reading-translations"
         static let editing = "editing-and-glossary"
@@ -26,6 +27,7 @@ nonisolated enum HelpContent {
 
     static let topics: [HelpTopic] = [
         gettingStarted,
+        capturing,
         languages,
         readingTranslations,
         editingAndGlossary,
@@ -85,7 +87,8 @@ nonisolated enum HelpContent {
                     .bullet(
                         String(
                             localized:
-                                "Each line is identified as German, Italian or English. English is left alone.")
+                                "Each line is identified as German, Italian or English. English is left alone."
+                        )
                     ),
                     .bullet(String(localized: "The rest is translated, shown as “Translating…”.")),
                     .bullet(
@@ -97,6 +100,53 @@ nonisolated enum HelpContent {
                         String(
                             localized:
                                 "When a screenshot says “Ready”, everything on it has been dealt with."))
+                ]
+            )
+        ]
+    )
+
+    static let capturing = HelpTopic(
+        id: ID.capturing,
+        title: String(localized: "Capturing from the Screen"),
+        symbol: "camera.viewfinder",
+        summary: String(localized: "Grab a window or an area of your screen without leaving the app."),
+        keywords: [
+            "capture", "screenshot", "window", "area", "region", "record",
+            "permission", "screen recording", "privacy"
+        ],
+        sections: [
+            HelpSection(
+                String(localized: "Two ways to capture"),
+                [
+                    .bullet(
+                        String(
+                            localized:
+                                "Capture Window (⇧⌘W) shows the system picker so you can click the window you want."
+                        )),
+                    .bullet(
+                        String(
+                            localized:
+                                "Capture Area (⇧⌘A) lets you drag a rectangle across any screen.")),
+                    .paragraph(
+                        String(
+                            localized:
+                                "The captured picture is added to the sidebar and starts translating straight away, just like a dragged-in file."
+                        ))
+                ]
+            ),
+            HelpSection(
+                String(localized: "Screen recording permission"),
+                [
+                    .paragraph(
+                        String(
+                            localized:
+                                "macOS asks the first time you capture. Turn Translate UI on under System Settings ▸ Privacy & Security ▸ Screen Recording, then try the capture button again."
+                        )),
+                    .tip(
+                        String(
+                            localized:
+                                "Translate UI is filtered out of area captures, so you won’t catch its own window in the shot."
+                        ))
                 ]
             )
         ]
@@ -179,7 +229,8 @@ nonisolated enum HelpContent {
                     .bullet(
                         String(
                             localized:
-                                "Overlay places the English text on top of the original, in the same position.")
+                                "Overlay places the English text on top of the original, in the same position."
+                        )
                     ),
                     .bullet(
                         String(
@@ -237,7 +288,8 @@ nonisolated enum HelpContent {
             HelpSection(
                 String(localized: "Correcting a translation"),
                 [
-                    .step(String(localized: "Double-click a label on the picture, or select it in the list.")),
+                    .step(
+                        String(localized: "Double-click a label on the picture, or select it in the list.")),
                     .step(String(localized: "Type the wording you want.")),
                     .step(
                         String(
@@ -397,7 +449,7 @@ nonisolated enum HelpContent {
                             localized:
                                 "Heavily compressed captures lose fine detail. A cleaner screenshot usually recognises much better."
                         )),
-                    .bullet(String(localized: "Then choose Edit ▸ Re-analyze Screenshot (⌘R).")),
+                    .bullet(String(localized: "Then choose Edit ▸ Re-analyze Screenshot (⌘R)."))
                 ]
             ),
             HelpSection(
@@ -489,6 +541,8 @@ nonisolated enum HelpContent {
                 [
                     .shortcut(keys: "⌘O", action: String(localized: "Open screenshots")),
                     .shortcut(keys: "⌘V", action: String(localized: "Paste a screenshot")),
+                    .shortcut(keys: "⇧⌘W", action: String(localized: "Capture a window")),
+                    .shortcut(keys: "⇧⌘A", action: String(localized: "Capture an area")),
                     .shortcut(keys: "⌘R", action: String(localized: "Re-analyze the selected screenshot"))
                 ]
             ),

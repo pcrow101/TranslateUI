@@ -41,13 +41,36 @@ struct ScreenshotSidebar: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack {
+            HStack(spacing: 8) {
                 Button {
                     store.showsFileImporter = true
                 } label: {
                     Label("Add Screenshots", systemImage: "plus")
                 }
                 .buttonStyle(.glass)
+                .disabled(store.isImporting)
+
+                Button {
+                    Task { await store.captureWindow() }
+                } label: {
+                    Label("Capture Window", systemImage: "macwindow")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.glass)
+                .help("Capture a window (⇧⌘W)")
+                .accessibilityIdentifier("sidebar.captureWindow")
+                .disabled(store.isImporting)
+
+                Button {
+                    Task { await store.captureArea() }
+                } label: {
+                    Label("Capture Area", systemImage: "rectangle.dashed")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.glass)
+                .help("Capture an area (⇧⌘A)")
+                .accessibilityIdentifier("sidebar.captureArea")
+                .disabled(store.isImporting)
 
                 Spacer()
 

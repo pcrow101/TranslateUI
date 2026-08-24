@@ -70,6 +70,35 @@ nonisolated enum ImageLoader {
         )
     }
 
+    /// Wraps a freshly captured `CGImage` as a `LoadedImage`.
+    ///
+    /// The content hash is computed from a PNG encoding so identical repeat
+    /// captures still deduplicate through the same code path as file imports.
+    @concurrent
+    nonisolated static func load(capturedImage: CGImage, name: String) async throws -> LoadedImage {
+        guard let data = pngData(from: capturedImage) else {
+            throw ImageLoadingError.unsupportedFormat(name)
+        }
+        return LoadedImage(
+            name: name,
+            sourceURL: nil,
+            contentHash: hash(of: data),
+            image: SendableImage(cgImage: capturedImage)
+        )
+    }
+
+    private nonisolated static func pngData(from image: CGImage) -> Data? {
+        let mutableData = CFDataCreateMutable(nil, 0)!
+        guard
+            let destination = CGImageDestinationCreateWithData(
+                mutableData, UTType.png.identifier as CFString, 1, nil
+            )
+        else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return mutableData as Data
+    }
+
     nonisolated static func isSupported(_ url: URL) -> Bool {
         guard let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType else {
             let ext = url.pathExtension.lowercased()

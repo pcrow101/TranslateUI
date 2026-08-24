@@ -124,6 +124,52 @@ struct MultiImageTranslationTests {
         )
     }
 
+    @Test("Preparing again during the download window defers instead of re-arming")
+    func prepareDefersWhileArmedWaitingForSession() async {
+        // Simulates the freeze the user reported: a language pack is
+        // downloading (session was armed but `.translationTask` hasn't started
+        // running yet), and a second screenshot's recognition finishes.
+        // Re-arming here would invalidate the configuration and cancel the
+        // in-flight `prepareTranslation()`, triggering an infinite loop.
+        let coordinator = TranslationCoordinator()
+        let first = italianScreenshot()
+        let second = italianScreenshot("Sottotitoli")
+
+        // Simulate arming without the run having started yet.
+        coordinator.beginRun(.italian)
+        coordinator.endRun(.italian)
+        // The above balances `runningLanguages`; now mark armed by driving
+        // through the public path: first arm produces `.ready` or
+        // `.needsDownload` and sets the armed flag.
+        _ = await coordinator.prepare(.italian, screenshots: [first], strategy: .highFidelity)
+        #expect(coordinator.isArmed(.italian))
+
+        // A second prepare while still armed must not re-arm.
+        let readiness = await coordinator.prepare(
+            .italian,
+            screenshots: [first, second],
+            strategy: .highFidelity
+        )
+        #expect(readiness == .busy)
+        #expect(coordinator.takeDeferredRequest(for: .italian))
+    }
+
+    @Test("Starting a run clears the armed flag")
+    func beginRunClearsArmed() async {
+        let coordinator = TranslationCoordinator()
+        let screenshot = italianScreenshot()
+        _ = await coordinator.prepare(.italian, screenshots: [screenshot], strategy: .highFidelity)
+        #expect(coordinator.isArmed(.italian))
+
+        coordinator.beginRun(.italian)
+        #expect(!coordinator.isArmed(.italian))
+        #expect(coordinator.isRunning(.italian))
+
+        coordinator.endRun(.italian)
+        #expect(!coordinator.isRunning(.italian))
+        #expect(!coordinator.isArmed(.italian))
+    }
+
     @Test("The deferred request is remembered exactly once")
     func deferredRequestIsConsumedOnce() async {
         let coordinator = TranslationCoordinator()
@@ -142,7 +188,6 @@ struct MultiImageTranslationTests {
     func idleLanguageIsNotDeferred() async {
         let coordinator = TranslationCoordinator()
         let screenshot = italianScreenshot()
-
         coordinator.beginRun(.german)
         let readiness = await coordinator.prepare(
             .italian,

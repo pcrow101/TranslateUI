@@ -68,6 +68,11 @@ final class TranslationCoordinator {
 
     /// Languages with a batch currently in flight.
     private var runningLanguages: Set<SourceLanguage> = []
+    /// Languages whose configuration is armed but whose `.translationTask`
+    /// hasn't started running yet. Re-arming during this window would cancel
+    /// the not-yet-started session and, when the pack is downloading, kick off
+    /// an infinite arm/cancel loop.
+    private var armedLanguages: Set<SourceLanguage> = []
     /// Languages that asked for a session while one was already running.
     private var deferredLanguages: Set<SourceLanguage> = []
 
@@ -101,8 +106,11 @@ final class TranslationCoordinator {
 
         // Re-arming mid-batch invalidates the configuration, which cancels the
         // running session and abandons every label it hadn't returned yet.
-        // Queue another pass for when the current one finishes instead.
-        if runningLanguages.contains(language) {
+        // The same is true in the window between arming and the session
+        // actually starting — critical while a language pack is downloading,
+        // because otherwise each new screenshot cancels the download and
+        // triggers an infinite arm/cancel loop.
+        if runningLanguages.contains(language) || armedLanguages.contains(language) {
             deferredLanguages.insert(language)
             return .busy
         }
@@ -115,9 +123,11 @@ final class TranslationCoordinator {
             // Not installed yet: `prepareTranslation()` inside the session
             // triggers the system download prompt.
             arm(language, strategy: strategy)
+            armedLanguages.insert(language)
             return .needsDownload
         default:
             arm(language, strategy: strategy)
+            armedLanguages.insert(language)
             return .ready
         }
     }
@@ -241,6 +251,12 @@ final class TranslationCoordinator {
         runningLanguages.contains(language)
     }
 
+    /// Whether `language` has been armed but its `.translationTask` hasn't
+    /// started yet — the download window, during which re-arming would cancel.
+    func isArmed(_ language: SourceLanguage) -> Bool {
+        armedLanguages.contains(language)
+    }
+
     /// Whether any screenshot still has untranslated blocks in `language`.
     func hasWork(for language: SourceLanguage, in screenshots: [Screenshot]) -> Bool {
         screenshots.contains { !$0.untranslatedBlocks(in: language).isEmpty }
@@ -254,10 +270,12 @@ final class TranslationCoordinator {
     /// Seam used by `run` — and by tests, which can't vend a real session.
     func beginRun(_ language: SourceLanguage) {
         runningLanguages.insert(language)
+        armedLanguages.remove(language)
     }
 
     func endRun(_ language: SourceLanguage) {
         runningLanguages.remove(language)
+        armedLanguages.remove(language)
     }
 
     /// Returns every half-finished label for `language` to `.pending` so the

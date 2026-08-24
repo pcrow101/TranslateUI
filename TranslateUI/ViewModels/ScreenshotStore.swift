@@ -245,6 +245,13 @@ final class ScreenshotStore {
     /// Called from `.translationTask` once a session exists.
     func runTranslation(for language: SourceLanguage, using session: sending TranslationSession) async {
         let result = await translation.run(language, using: session, over: screenshots)
+
+        // Whether or not `run` did work, the pack may now be installed —
+        // clear a stale "Download …" banner from the first pass.
+        if await translation.refreshStatus(for: language) == .installed {
+            alertCenter.dismiss(id: PipelineAlert.languageNeedsDownload(language).id)
+        }
+
         guard result.didRun else { return }
 
         // Cancelled by a re-arm: the labels went back on the queue, so ask for
@@ -258,7 +265,6 @@ final class ScreenshotStore {
             alertCenter.post(.translationsFailed(count: result.failureCount))
         } else {
             alertCenter.dismiss(id: PipelineAlert.translationsFailed(count: 0).id)
-            alertCenter.dismiss(id: PipelineAlert.languageNeedsDownload(language).id)
         }
 
         await finish(result.touched)
@@ -312,8 +318,18 @@ final class ScreenshotStore {
     }
 
     /// Re-arms the session so `prepareTranslation()` shows the download prompt.
+    /// A no-op if the pack is already downloading — that would cancel it.
     func requestLanguageDownload(_ language: SourceLanguage) async {
-        await translation.refreshStatus(for: language)
+        let status = await translation.refreshStatus(for: language)
+        if status == .installed {
+            alertCenter.dismiss(id: PipelineAlert.languageNeedsDownload(language).id)
+            return
+        }
+        // Already downloading: don't re-arm, that would cancel the in-flight
+        // `prepareTranslation()`.
+        if translation.isRunning(language) || translation.isArmed(language) {
+            return
+        }
         await requestTranslations()
     }
 

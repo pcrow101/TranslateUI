@@ -1,4 +1,3 @@
-TranslateUITests/TestImageFactory.swift//
 //  TestImageFactory.swift
 //  TranslateUITests
 //

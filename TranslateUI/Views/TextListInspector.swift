@@ -89,31 +89,35 @@ struct TextListInspector: View {
                 TranslationEditor(screenshot: screenshot, block: block)
             }
         }
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if store.selectedScreenshot != nil {
-                HStack {
-                    Toggle(
-                        "Show Original",
-                        isOn: Binding(
-                            get: { settings.showOriginalText },
-                            set: { settings.showOriginalText = $0 }
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack {
+                        Toggle(
+                            "Show Original",
+                            isOn: Binding(
+                                get: { settings.showOriginalText },
+                                set: { settings.showOriginalText = $0 }
+                            )
                         )
-                    )
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
 
-                    Spacer()
+                        Spacer()
 
-                    Button {
-                        Task { await store.refineSelection() }
-                    } label: {
-                        Label("Polish", systemImage: "sparkles")
+                        Button {
+                            Task { await store.refineSelection() }
+                        } label: {
+                            Label("Polish", systemImage: "sparkles")
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(!UIStringRefiner.isAvailable)
+                        .help(UIStringRefiner.unavailableReason ?? "Rewrite labels with the on-device model")
                     }
-                    .buttonStyle(.glass)
-                    .disabled(!UIStringRefiner.isAvailable)
-                    .help(UIStringRefiner.unavailableReason ?? "Rewrite labels with the on-device model")
+                    .padding(12)
                 }
-                .padding(12)
+                .background(.bar)
             }
         }
     }

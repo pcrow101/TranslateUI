@@ -24,6 +24,11 @@ struct ScreenshotCanvas: View {
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .frame(width: proxy.size.width, height: proxy.size.height)
+                    // Interactive canvas: let the user drag the screenshot
+                    // out into Finder/Mail/Notes. Skipped on the render-to-
+                    // PNG path (`isInteractive = false`) so the exporter
+                    // never picks up a drag session.
+                    .modifier(CanvasDrag(screenshot: screenshot, enabled: isInteractive))
 
                 if showsTranslations {
                     ForEach(screenshot.blocks) { block in
@@ -137,5 +142,25 @@ struct ScreenshotCanvas: View {
                 height: imageRect.height * scale
             )
         }
+    }
+}
+
+/// Conditionally applies `.draggable` to the screenshot image. Split into a
+/// modifier so the exporter can turn dragging off with a single flag.
+private struct CanvasDrag: ViewModifier {
+    let screenshot: Screenshot
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.draggable(transfer)
+        } else {
+            content
+        }
+    }
+
+    private var transfer: ScreenshotTransfer {
+        ScreenshotTransfer.make(from: screenshot)
+            ?? ScreenshotTransfer(name: screenshot.name, pngData: Data())
     }
 }

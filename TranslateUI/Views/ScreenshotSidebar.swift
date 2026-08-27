@@ -17,6 +17,15 @@ struct ScreenshotSidebar: View {
                 ForEach(store.screenshots) { screenshot in
                     row(for: screenshot)
                         .tag(screenshot.id)
+                        // Drag the screenshot itself out — Finder receives a
+                        // PNG file, Mail/Messages attach it, Notes/Preview
+                        // accept it as an image. `.draggable` takes an
+                        // `@autoclosure`, so encoding only runs when a drag
+                        // actually starts, not on every list render.
+                        .draggable(
+                            ScreenshotTransfer.make(from: screenshot)
+                                ?? ScreenshotTransfer(name: screenshot.name, pngData: Data())
+                        )
                         .contextMenu {
                             Button("Re-analyze") {
                                 Task { await store.analyze(screenshot, ignoringCache: true) }

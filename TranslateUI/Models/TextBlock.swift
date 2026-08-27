@@ -162,6 +162,7 @@ nonisolated extension Sequence<TextBlock> {
 nonisolated enum SourceLanguage: String, CaseIterable, Hashable, Sendable, Codable {
     case german
     case italian
+    case spanish
     case english
     case unknown
 
@@ -169,29 +170,57 @@ nonisolated enum SourceLanguage: String, CaseIterable, Hashable, Sendable, Codab
         switch self {
         case .german: Locale.Language(identifier: "de")
         case .italian: Locale.Language(identifier: "it")
+        case .spanish: Locale.Language(identifier: "es")
         case .english: Locale.Language(identifier: "en")
         case .unknown: nil
         }
     }
 
+    /// The Vision recognition identifier for this language, when there is one.
+    var recognitionIdentifier: Locale.Language? {
+        switch self {
+        case .german: Locale.Language(identifier: "de-DE")
+        case .italian: Locale.Language(identifier: "it-IT")
+        case .spanish: Locale.Language(identifier: "es-ES")
+        case .english: Locale.Language(identifier: "en-US")
+        case .unknown: nil
+        }
+    }
+
     /// Language identifiers handed to Vision for text recognition.
-    static var recognitionIdentifiers: [Locale.Language] {
-        [
+    ///
+    /// The core set is German + Italian + English; opt-in languages like
+    /// Spanish are included only when the user has enabled them, so Vision
+    /// isn't asked to consider dictionaries the app can't translate anyway.
+    static func recognitionIdentifiers(
+        additional: [SourceLanguage] = []
+    ) -> [Locale.Language] {
+        var identifiers: [Locale.Language] = [
             Locale.Language(identifier: "de-DE"),
             Locale.Language(identifier: "it-IT"),
             Locale.Language(identifier: "en-US")
         ]
+        for language in additional {
+            guard let identifier = language.recognitionIdentifier,
+                !identifiers.contains(where: {
+                    $0.languageCode == identifier.languageCode
+                })
+            else { continue }
+            identifiers.append(identifier)
+        }
+        return identifiers
     }
 
-    /// Only German and Italian are translated; English is passed through.
+    /// German, Italian and Spanish are translated; English is passed through.
     var isTranslatable: Bool {
-        self == .german || self == .italian
+        self == .german || self == .italian || self == .spanish
     }
 
     var displayName: String {
         switch self {
         case .german: String(localized: "German")
         case .italian: String(localized: "Italian")
+        case .spanish: String(localized: "Spanish")
         case .english: String(localized: "English")
         case .unknown: String(localized: "Unknown")
         }
@@ -201,6 +230,7 @@ nonisolated enum SourceLanguage: String, CaseIterable, Hashable, Sendable, Codab
         switch self {
         case .german: "🇩🇪"
         case .italian: "🇮🇹"
+        case .spanish: "🇪🇸"
         case .english: "🇬🇧"
         case .unknown: "🏳️"
         }

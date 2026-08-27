@@ -114,9 +114,11 @@ struct ScreenCaptureServiceTests {
     @Test("A new capture becomes the active screenshot")
     @MainActor
     func captureSwitchesSelectionToTheNewShot() async throws {
-        let firstCG = TestImageFactory.screen(lines: ["Alpha"], size: CGSize(width: 300, height: 120), fontSize: 24)!
+        let firstCG = TestImageFactory.screen(
+            lines: ["Alpha"], size: CGSize(width: 300, height: 120), fontSize: 24)!
         let first = try await ImageLoader.load(capturedImage: firstCG, name: "First")
-        let secondCG = TestImageFactory.screen(lines: ["Beta"], size: CGSize(width: 300, height: 120), fontSize: 24)!
+        let secondCG = TestImageFactory.screen(
+            lines: ["Beta"], size: CGSize(width: 300, height: 120), fontSize: 24)!
         let second = try await ImageLoader.load(capturedImage: secondCG, name: "Second")
 
         let store = TestFixtures.store(screenCapture: StubScreenCapture(window: first, area: second))

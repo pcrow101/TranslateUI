@@ -56,6 +56,10 @@ struct OverlayChip: View {
         .opacity(block.state == .translating ? 0.55 : 1)
         .zIndex(expanded ? 1 : 0)
         .onHover { isHovering = $0 }
+        // Drag the translated text out into another app (Notes, Messages,
+        // any text field). Falls back to the source text for chips that
+        // couldn't be translated, so a drag always carries *something*.
+        .draggable(block.displayText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(block.displayText)
         .accessibilityValue(Text(block.sourceText))

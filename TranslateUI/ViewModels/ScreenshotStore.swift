@@ -27,6 +27,7 @@ final class ScreenshotStore {
     private let alertCenter = AlertCenter()
     private let glossaryCoordinator: GlossaryCoordinator
     private let cache: ResultCache
+    private let session: SessionStore
     private let settings: AppSettings
     private let screenCapture: any ScreenCapturing
 
@@ -36,11 +37,13 @@ final class ScreenshotStore {
         settings: AppSettings,
         glossary: Glossary = Glossary(),
         cache: ResultCache = .shared,
+        session: SessionStore = .shared,
         screenCapture: (any ScreenCapturing)? = nil
     ) {
         self.settings = settings
         self.glossary = glossary
         self.cache = cache
+        self.session = session
         self.glossaryCoordinator = GlossaryCoordinator(glossary: glossary)
         self.screenCapture = screenCapture ?? ScreenCaptureService()
     }
@@ -48,14 +51,29 @@ final class ScreenshotStore {
     // MARK: - State
 
     var screenshots: [Screenshot] = []
-    var selectionID: Screenshot.ID?
+    var selectionID: Screenshot.ID? {
+        didSet {
+            guard selectionID != oldValue else { return }
+            scheduleSessionSave()
+        }
+    }
     var isImporting = false
     var errorMessage: String?
+    /// True from the moment `prewarm()` kicks off the on-device model until
+    /// the first refinement chunk succeeds — or a safety timeout expires,
+    /// whichever comes first. Drives a small "Warming Apple Intelligence…"
+    /// pill so the user knows why the first polish feels sluggish.
+    var isPrewarmingModel = false
     /// Driven by the toolbar button and the File ▸ Open command.
     var showsFileImporter = false
+    /// True while `restore()` is repopulating the sidebar. Guards the save
+    /// debouncer so restoring doesn't immediately trigger a redundant write.
+    private var isRestoring = false
 
     private var reanalysisTask: Task<Void, Never>?
     private var translationRequestTask: Task<Void, Never>?
+    private var sessionSaveTask: Task<Void, Never>?
+    private var prewarmTimeoutTask: Task<Void, Never>?
 
     /// Actionable pipeline problems, shown as banners.
     var alerts: [PipelineAlert] { alertCenter.alerts }
@@ -66,6 +84,7 @@ final class ScreenshotStore {
     /// Observed by `.translationTask` to vend a live session per language.
     var germanConfiguration: TranslationSession.Configuration? { translation.germanConfiguration }
     var italianConfiguration: TranslationSession.Configuration? { translation.italianConfiguration }
+    var spanishConfiguration: TranslationSession.Configuration? { translation.spanishConfiguration }
 
     var selectedScreenshot: Screenshot? {
         guard let selectionID else { return nil }
@@ -83,7 +102,11 @@ final class ScreenshotStore {
     }
 
     private var recognitionPipeline: RecognitionPipeline {
-        RecognitionPipeline(minimumConfidence: settings.minimumConfidence)
+        var pipeline = RecognitionPipeline(minimumConfidence: settings.minimumConfidence)
+        if settings.enableSpanish {
+            pipeline.enabledOptional = [.spanish]
+        }
+        return pipeline
     }
 
     // MARK: - Import
@@ -131,6 +154,11 @@ final class ScreenshotStore {
             if let match = screenshots.first(where: { $0.contentHash == image.contentHash }) {
                 selectionID = match.id
             }
+            // Optional: leave a copy on the pasteboard, matching macOS's
+            // built-in screencapture. Toggleable in Settings.
+            if settings.copyCaptureToClipboard {
+                Pasteboard.write(image.image.cgImage)
+            }
             // The overlay/picker deactivates the app; make sure the new
             // screenshot is visible without a Dock click.
             NSApp.activate(ignoringOtherApps: true)
@@ -156,12 +184,14 @@ final class ScreenshotStore {
         if selectionID == screenshot.id {
             selectionID = screenshots.first?.id
         }
+        scheduleSessionSave()
     }
 
     func removeAll() {
         screenshots.removeAll()
         selectionID = nil
         alertCenter.removeAll()
+        scheduleSessionSave()
     }
 
     private func add(_ screenshot: Screenshot) {
@@ -172,7 +202,93 @@ final class ScreenshotStore {
         }
         screenshots.append(screenshot)
         selectionID = selectionID ?? screenshot.id
+        scheduleSessionSave()
         Task { await analyze(screenshot) }
+    }
+
+    // MARK: - Session persistence
+
+    /// Rehydrates the previous session's sidebar. Called once at launch when
+    /// `AppSettings.restoreRecentScreenshots` is on. Each restored screenshot
+    /// runs `analyze` — which hits `ResultCache` for anything already
+    /// recognised, so restored screens usually come back translated and
+    /// ready.
+    func restoreSession() async {
+        guard screenshots.isEmpty else { return }
+        isRestoring = true
+        defer { isRestoring = false }
+
+        let (restored, selection) = await session.restore()
+        for item in restored {
+            let screenshot = Screenshot(loaded: item.image, id: item.entry.id)
+            screenshots.append(screenshot)
+        }
+        if let selection, screenshots.contains(where: { $0.id == selection }) {
+            selectionID = selection
+        } else {
+            selectionID = screenshots.first?.id
+        }
+
+        // Trigger analysis for each; cache hits are near-instant.
+        for screenshot in screenshots {
+            Task { await analyze(screenshot) }
+        }
+    }
+
+    /// Debounced write. Every mutation posts one; the tail wins.
+    private func scheduleSessionSave() {
+        guard !isRestoring else { return }
+        #if DEBUG
+        // UI test fixtures shouldn't leak into the persisted session — the
+        // next real launch would restore them and confuse the user.
+        guard !UITestSupport.isEnabled else { return }
+        #endif
+        sessionSaveTask?.cancel()
+        sessionSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, let self else { return }
+            await self.saveSessionNow()
+        }
+    }
+
+    private func saveSessionNow() async {
+        // Snapshot on the main actor first so nothing crosses without being
+        // Sendable.
+        let entries: [SessionStore.Entry] = screenshots.map { screenshot in
+            SessionStore.Entry(
+                id: screenshot.id,
+                name: screenshot.name,
+                sourceURL: screenshot.sourceURL,
+                contentHash: screenshot.contentHash,
+                importedAt: Date()
+            )
+        }
+        let selection = selectionID
+        let known = await session.knownHashes()
+
+        // Encode any PNGs the store hasn't seen. Happens off-main so we don't
+        // stall the UI while re-encoding a fresh 4K capture.
+        var newImages: [String: Data] = [:]
+        for screenshot in screenshots where !known.contains(screenshot.contentHash) {
+            let cgImage = screenshot.cgImage
+            let hash = screenshot.contentHash
+            let data = await Task.detached { ImageLoader.encodePNG(from: cgImage) }.value
+            if let data { newImages[hash] = data }
+        }
+
+        await session.save(
+            SessionStore.SaveRequest(
+                entries: entries,
+                selectionID: selection,
+                newImages: newImages
+            )
+        )
+    }
+
+    /// Wipes the persisted session. Exposed to Settings.
+    func clearRecent() async {
+        sessionSaveTask?.cancel()
+        await session.clear()
     }
 
     // MARK: - Recognition
@@ -260,7 +376,7 @@ final class ScreenshotStore {
     /// Checks availability, then arms a session for every language that still
     /// has untranslated blocks.
     func requestTranslations() async {
-        for language in TranslationCoordinator.languages {
+        for language in TranslationCoordinator.languages(includingSpanish: settings.enableSpanish) {
             let readiness = await translation.prepare(
                 language,
                 screenshots: screenshots,
@@ -344,10 +460,35 @@ final class ScreenshotStore {
     /// Warms the on-device pieces so the first screenshot isn't the slow one.
     func prewarm() async {
         await translation.refreshAvailability()
-        if settings.prewarmModel, settings.useModelRefinement {
-            refiner.prewarm()
+        guard settings.prewarmModel, settings.useModelRefinement, UIStringRefiner.isAvailable else {
+            return
+        }
+        refiner.prewarm()
+        beginPrewarmWindow()
+    }
+
+    /// Marks the model as warming for `maxPrewarmSeconds` unless something
+    /// else (e.g. the first successful refinement chunk) clears it earlier.
+    private func beginPrewarmWindow() {
+        isPrewarmingModel = true
+        prewarmTimeoutTask?.cancel()
+        prewarmTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.maxPrewarmSeconds))
+            guard !Task.isCancelled, let self else { return }
+            self.finishPrewarmWindow()
         }
     }
+
+    /// Clears the warming flag. Idempotent.
+    private func finishPrewarmWindow() {
+        prewarmTimeoutTask?.cancel()
+        prewarmTimeoutTask = nil
+        isPrewarmingModel = false
+    }
+
+    /// Fallback ceiling for the "warming" pill so it never sticks forever
+    /// if the model is quicker than we expect on the host.
+    private static let maxPrewarmSeconds: Int = 12
 
     /// Resets failed blocks and asks for a fresh session.
     func retryFailedTranslations() async {
@@ -396,13 +537,21 @@ final class ScreenshotStore {
             guard block.sourceLanguage.isTranslatable, let translated = block.translatedText else {
                 return nil
             }
-            return UIStringRefiner.Item(id: block.id, source: block.sourceText, translation: translated)
+            return UIStringRefiner.Item(
+                id: block.id,
+                source: block.sourceText,
+                translation: translated,
+                sourceLanguage: block.sourceLanguage
+            )
         }
         guard !items.isEmpty else { return }
 
         screenshot.phase = .refining
         // Applied per chunk so polished labels appear while later chunks run.
         _ = await refiner.refine(items, glossary: glossaryCoordinator.examples(for: screenshot)) { chunk in
+            // The very first chunk to arrive is proof the model is warm; drop
+            // the "warming" pill even if the timeout hasn't expired.
+            self.finishPrewarmWindow()
             for (id, text) in chunk {
                 screenshot.update(blockID: id) { $0.refinedText = text }
             }

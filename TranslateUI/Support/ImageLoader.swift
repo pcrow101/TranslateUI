@@ -88,6 +88,12 @@ nonisolated enum ImageLoader {
     }
 
     private nonisolated static func pngData(from image: CGImage) -> Data? {
+        Self.encodePNG(from: image)
+    }
+
+    /// PNG-encodes a `CGImage`. Used by `SessionStore` to persist captured
+    /// screenshots whose bytes never originated from a file on disk.
+    nonisolated static func encodePNG(from image: CGImage) -> Data? {
         let mutableData = CFDataCreateMutable(nil, 0)!
         guard
             let destination = CGImageDestinationCreateWithData(

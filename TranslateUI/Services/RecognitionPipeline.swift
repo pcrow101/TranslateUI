@@ -20,17 +20,23 @@ nonisolated struct RecognitionPipeline: Sendable {
     var minimumConfidence: Double = 0.3
     /// Longest edge handed to Vision. Zero disables downscaling.
     var maximumDimension: CGFloat = TextRecognitionService.defaultMaximumDimension
+    /// Opt-in languages the user has enabled (e.g. Spanish). Threaded through
+    /// to both the OCR request and the language detector so a screenshot in an
+    /// enabled optional language is recognised and classified correctly.
+    var enabledOptional: Set<SourceLanguage> = []
 
     func analyze(_ image: SendableImage) async throws -> Analysis {
         var service = TextRecognitionService()
         service.minimumConfidence = Float(minimumConfidence)
         service.maximumDimension = maximumDimension
+        service.additionalRecognitionLanguages = Array(enabledOptional)
 
         let recognized = try await service.recognizeText(in: image)
 
         // The document language disambiguates short labels ("Info", "Start")
         // that no per-block detector can classify on their own.
-        let detector = LanguageDetector()
+        var detector = LanguageDetector()
+        detector.enabledOptional = enabledOptional
         let documentLanguage = await detector.dominantLanguage(for: recognized)
         let classified = await detector.classify(recognized, documentLanguage: documentLanguage)
 

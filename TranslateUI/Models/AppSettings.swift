@@ -64,6 +64,9 @@ final class AppSettings {
         static let minimumConfidence = "settings.minimumConfidence"
         static let translationStrategy = "settings.translationStrategy"
         static let prewarmModel = "settings.prewarmModel"
+        static let enableSpanish = "settings.enableSpanish"
+        static let restoreRecent = "settings.restoreRecentScreenshots"
+        static let copyCaptureToClipboard = "settings.copyCaptureToClipboard"
     }
 
     private let defaults: UserDefaults
@@ -81,6 +84,9 @@ final class AppSettings {
                 rawValue: defaults.string(forKey: Key.translationStrategy) ?? ""
             ) ?? .highFidelity
         self.prewarmModel = Self.bool(defaults, Key.prewarmModel, default: true)
+        self.enableSpanish = Self.bool(defaults, Key.enableSpanish, default: false)
+        self.restoreRecentScreenshots = Self.bool(defaults, Key.restoreRecent, default: true)
+        self.copyCaptureToClipboard = Self.bool(defaults, Key.copyCaptureToClipboard, default: false)
     }
 
     /// Reads a stored flag, falling back to `fallback` when nothing is set.
@@ -121,5 +127,26 @@ final class AppSettings {
     /// Warm the on-device model at launch so the first polish isn't slow.
     var prewarmModel: Bool {
         didSet { defaults.set(prewarmModel, forKey: Key.prewarmModel) }
+    }
+
+    /// Opt-in Spanish → English translation. Disabled by default because the
+    /// core scope of the app is German + Italian streaming-device UIs; enabling
+    /// this adds Spanish to Vision recognition, language detection, and the
+    /// translation coordinator.
+    var enableSpanish: Bool {
+        didSet { defaults.set(enableSpanish, forKey: Key.enableSpanish) }
+    }
+
+    /// Restore the previous session's sidebar on launch. Users who prefer a
+    /// clean slate each time can turn this off in Settings.
+    var restoreRecentScreenshots: Bool {
+        didSet { defaults.set(restoreRecentScreenshots, forKey: Key.restoreRecent) }
+    }
+
+    /// Copy every captured window/area screenshot to the clipboard as well as
+    /// importing it. Matches macOS's built-in `screencapture` behaviour so the
+    /// image is one paste away from another app.
+    var copyCaptureToClipboard: Bool {
+        didSet { defaults.set(copyCaptureToClipboard, forKey: Key.copyCaptureToClipboard) }
     }
 }

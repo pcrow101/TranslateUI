@@ -75,7 +75,44 @@ struct SettingsView: View {
                     Toggle("Always show original text", isOn: $settings.showOriginalText)
                 }
 
+                Section {
+                    Toggle(
+                        "Also copy captures to the clipboard",
+                        isOn: $settings.copyCaptureToClipboard
+                    )
+                } header: {
+                    Text("Screen Capture")
+                } footer: {
+                    Text(
+                        "Window and area captures land in the app as usual. Turn this on to leave a copy on the clipboard as well, so you can paste the same shot into another app."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Toggle("Also translate Spanish → English", isOn: $settings.enableSpanish)
+                } header: {
+                    Text("Optional Languages")
+                } footer: {
+                    Text(
+                        "Adds Spanish to text recognition and translation. Off by default so short labels aren’t misread as Italian."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
                 Section("Storage") {
+                    Toggle("Restore recent screenshots at launch", isOn: $settings.restoreRecentScreenshots)
+                    Text(
+                        "Reopens the last \(SessionStore.capacity) screenshots you had loaded. Their translations come from the cache so they’re ready immediately."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    Button("Clear Recent Screenshots") {
+                        Task { await store.clearRecent() }
+                    }
                     Button("Clear Cached Results") {
                         Task { await store.clearCache() }
                     }
@@ -104,15 +141,23 @@ struct SettingsView: View {
     }
 }
 
-/// Shows whether the German → English and Italian → English packs are ready.
+/// Shows whether the German → English and Italian → English packs are ready
+/// (plus Spanish → English when the user has opted in).
 private struct LanguageAvailabilityView: View {
+    @Environment(AppSettings.self) private var settings
     @Environment(\.showHelp) private var showHelp
     @State private var statuses: [SourceLanguage: LanguageAvailability.Status] = [:]
+
+    private var languages: [SourceLanguage] {
+        var list: [SourceLanguage] = [.german, .italian]
+        if settings.enableSpanish { list.append(.spanish) }
+        return list
+    }
 
     var body: some View {
         Form {
             Section {
-                ForEach([SourceLanguage.german, .italian], id: \.self) { language in
+                ForEach(languages, id: \.self) { language in
                     LabeledContent {
                         Text(description(for: statuses[language]))
                             .foregroundStyle(.secondary)
@@ -133,11 +178,13 @@ private struct LanguageAvailabilityView: View {
             }
         }
         .formStyle(.grouped)
-        .task {
+        .task(id: settings.enableSpanish) {
             let service = TranslationService()
-            for language in [SourceLanguage.german, .italian] {
-                statuses[language] = await service.status(for: language)
+            var next: [SourceLanguage: LanguageAvailability.Status] = [:]
+            for language in languages {
+                next[language] = await service.status(for: language)
             }
+            statuses = next
         }
     }
 

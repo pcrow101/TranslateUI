@@ -184,4 +184,42 @@ struct ComponentTests {
 
         #expect(examples == ["Abmelden": "Sign Out"], "unrelated terms shouldn't be sent to the model")
     }
+
+    // MARK: - Store removal
+
+    @Test("Removing one screenshot keeps the others and moves the selection")
+    @MainActor
+    func removingOneKeepsOthers() async {
+        // Guards the sidebar's trash button: the primary action must delete
+        // only the selected screenshot, not the whole batch.
+        let store = TestFixtures.store()
+        let first = TestFixtures.screenshot(name: "First")
+        let second = TestFixtures.screenshot(name: "Second")
+        let third = TestFixtures.screenshot(name: "Third")
+        store.screenshots = [first, second, third]
+        store.selectionID = second.id
+
+        store.remove(second)
+
+        #expect(store.screenshots.map(\.name) == ["First", "Third"])
+        // Something must stay selected so the detail pane doesn't blank out.
+        #expect(store.selectionID != nil)
+        #expect(store.selectionID != second.id)
+    }
+
+    @Test("Remove All wipes the sidebar")
+    @MainActor
+    func removeAllWipesEverything() {
+        let store = TestFixtures.store()
+        store.screenshots = [
+            TestFixtures.screenshot(name: "One"),
+            TestFixtures.screenshot(name: "Two")
+        ]
+        store.selectionID = store.screenshots.first?.id
+
+        store.removeAll()
+
+        #expect(store.screenshots.isEmpty)
+        #expect(store.selectionID == nil)
+    }
 }

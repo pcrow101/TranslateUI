@@ -26,6 +26,9 @@ struct ContentView: View {
                 #if DEBUG
                 await UITestSupport.seed(into: store)
                 #endif
+                if settings.restoreRecentScreenshots {
+                    await store.restoreSession()
+                }
                 await store.prewarm()
             }
             // Publish the document actions so the main menu can invoke them too.
@@ -35,6 +38,12 @@ struct ContentView: View {
             .onChange(of: settings.minimumConfidence) { _, _ in
                 store.recognitionSettingsChanged()
             }
+            // Toggling Spanish changes both Vision's recognition dictionary and
+            // the language detector's candidate list, so every screenshot needs
+            // to be reanalysed for the new setting to take effect.
+            .onChange(of: settings.enableSpanish) { _, _ in
+                store.recognitionSettingsChanged()
+            }
             // One session per source language: the modifier vends the session
             // and re-runs whenever a configuration is created or invalidated.
             .translationTask(store.germanConfiguration) { session in
@@ -42,6 +51,9 @@ struct ContentView: View {
             }
             .translationTask(store.italianConfiguration) { session in
                 await store.runTranslation(for: .italian, using: session)
+            }
+            .translationTask(store.spanishConfiguration) { session in
+                await store.runTranslation(for: .spanish, using: session)
             }
             .alert(
                 "Something went wrong",
@@ -101,6 +113,14 @@ struct ContentView: View {
             TextListInspector(selectedBlockID: $selectedBlockID)
                 .inspectorColumnWidth(min: 260, ideal: 320, max: 420)
         }
+        .overlay(alignment: .bottom) {
+            if store.isPrewarmingModel {
+                PrewarmPill()
+                    .padding(.bottom, 20)
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.smooth(duration: 0.25), value: store.isPrewarmingModel)
     }
 
     private var errorBinding: Binding<Bool> {

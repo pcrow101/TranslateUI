@@ -31,6 +31,12 @@ struct ScreenshotSidebar: View {
         .listStyle(.sidebar)
         .accessibilityIdentifier("sidebar.screenshots")
         .onChange(of: store.selectionID) { _, _ in selectedBlockID = nil }
+        // Pressing ⌫ with a row selected removes it, matching Finder/Mail.
+        .onDeleteCommand {
+            if let screenshot = store.selectedScreenshot {
+                store.remove(screenshot)
+            }
+        }
         .overlay {
             if store.screenshots.isEmpty {
                 ContentUnavailableView(
@@ -74,13 +80,26 @@ struct ScreenshotSidebar: View {
 
                 Spacer()
 
-                Button {
-                    store.removeAll()
+                // Primary action removes the selected screenshot. Bulk delete
+                // is still available as a secondary menu item so it isn't lost
+                // — just no longer a one-slip hazard.
+                Menu {
+                    Button("Remove All Screenshots", role: .destructive) {
+                        store.removeAll()
+                    }
+                    .disabled(store.screenshots.isEmpty)
                 } label: {
-                    Label("Clear", systemImage: "trash")
+                    Label("Remove Selected", systemImage: "trash")
                         .labelStyle(.iconOnly)
+                } primaryAction: {
+                    if let screenshot = store.selectedScreenshot {
+                        store.remove(screenshot)
+                    }
                 }
+                .menuStyle(.button)
                 .buttonStyle(.glass)
+                .help("Remove the selected screenshot")
+                .accessibilityIdentifier("sidebar.removeSelected")
                 .disabled(store.screenshots.isEmpty)
             }
             .padding(12)

@@ -35,6 +35,10 @@ nonisolated struct TextRecognitionService: Sendable {
     /// Longest edge handed to Vision. Zero disables downscaling.
     var maximumDimension: CGFloat = TextRecognitionService.defaultMaximumDimension
 
+    /// Opt-in languages beyond the core German/Italian/English set. Passed to
+    /// Vision so its language corrector consults the right dictionary.
+    var additionalRecognitionLanguages: [SourceLanguage] = []
+
     @concurrent
     nonisolated func recognizeText(in image: SendableImage) async throws -> [TextBlock] {
         let state = Self.signposter.beginInterval("recognizeText")
@@ -52,7 +56,9 @@ nonisolated struct TextRecognitionService: Sendable {
 
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
-        request.recognitionLanguages = SourceLanguage.recognitionIdentifiers
+        request.recognitionLanguages = SourceLanguage.recognitionIdentifiers(
+            additional: additionalRecognitionLanguages
+        )
         request.automaticallyDetectsLanguage = true
         request.usesLanguageCorrection = true
 

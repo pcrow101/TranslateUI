@@ -19,8 +19,15 @@ import Translation
 @MainActor
 @Observable
 final class TranslationCoordinator {
-    /// The languages this app translates from.
-    static let languages: [SourceLanguage] = [.german, .italian]
+    /// The languages this app translates from. Spanish is opt-in via Settings,
+    /// so callers pass whether it should be included in the current pass.
+    nonisolated static func languages(includingSpanish: Bool) -> [SourceLanguage] {
+        includingSpanish ? [.german, .italian, .spanish] : [.german, .italian]
+    }
+
+    /// Every language the app is capable of translating, whether or not the
+    /// user has opted in. Used for availability probes and Settings displays.
+    nonisolated static let allTranslatableLanguages: [SourceLanguage] = [.german, .italian, .spanish]
 
     private static let logger = Logger(subsystem: "com.icloud.TranslateUI", category: "Translation")
 
@@ -65,6 +72,7 @@ final class TranslationCoordinator {
     /// One configuration per source language, observed by `.translationTask`.
     var germanConfiguration: TranslationSession.Configuration?
     var italianConfiguration: TranslationSession.Configuration?
+    var spanishConfiguration: TranslationSession.Configuration?
 
     /// Languages with a batch currently in flight.
     private var runningLanguages: Set<SourceLanguage> = []
@@ -79,7 +87,7 @@ final class TranslationCoordinator {
     // MARK: - Availability
 
     func refreshAvailability() async {
-        for language in Self.languages {
+        for language in Self.allTranslatableLanguages {
             statuses[language] = await service.status(for: language)
         }
     }
@@ -155,6 +163,12 @@ final class TranslationCoordinator {
                 italianConfiguration = configuration
             } else {
                 italianConfiguration?.invalidate()
+            }
+        case .spanish:
+            if spanishConfiguration == nil {
+                spanishConfiguration = configuration
+            } else {
+                spanishConfiguration?.invalidate()
             }
         default:
             break

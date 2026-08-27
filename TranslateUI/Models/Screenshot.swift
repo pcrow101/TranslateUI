@@ -37,7 +37,7 @@ final class Screenshot: Identifiable {
         }
     }
 
-    let id = UUID()
+    let id: UUID
     let name: String
     let sourceURL: URL?
     /// Stable content hash used as the cache key.
@@ -50,7 +50,8 @@ final class Screenshot: Identifiable {
     /// Dominant language across the whole screen, used to disambiguate short labels.
     var documentLanguage: SourceLanguage = .unknown
 
-    init(loaded: LoadedImage) {
+    init(loaded: LoadedImage, id: UUID = UUID()) {
+        self.id = id
         self.name = loaded.name
         self.sourceURL = loaded.sourceURL
         self.contentHash = loaded.contentHash

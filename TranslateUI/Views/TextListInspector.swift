@@ -54,6 +54,9 @@ struct TextListInspector: View {
                         }
                         .padding(.vertical, 2)
                         .tag(block.id)
+                        // Drag out the translated text — mirrors the
+                        // draggable overlay chips on the canvas.
+                        .draggable(block.displayText)
                         .swipeActions(edge: .trailing) {
                             Button("Edit") { editingBlock = block }
                         }

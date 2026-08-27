@@ -20,6 +20,11 @@ struct UIStringRefiner {
         let id: UUID
         let source: String
         let translation: String
+        /// Language of `source`. Used to skip items in a language the on-device
+        /// model doesn't understand — passing them anyway produced an
+        /// "Unsupported language id detected" log entry per chunk and left
+        /// their raw translation untouched.
+        let sourceLanguage: SourceLanguage
     }
 
     @Generable
@@ -46,6 +51,27 @@ struct UIStringRefiner {
 
     static var isAvailable: Bool {
         SystemLanguageModel.default.availability == .available
+    }
+
+    /// Which of our source languages the on-device model actually understands.
+    ///
+    /// Foundation Models silently logs *"Unsupported language id detected"*
+    /// (and returns the draft unchanged) whenever a chunk contains a language
+    /// its dictionary hasn't been trained on. We filter unsupported source
+    /// languages *before* the call so the log stays clean and we don't waste
+    /// a round-trip that can't improve the label.
+    static var supportedSourceLanguages: Set<SourceLanguage> {
+        let modelLanguages = SystemLanguageModel.default.supportedLanguages
+        // Match on the language subtag ("de", "it", …). The model reports
+        // Locale.Language values which include region info we don't care about
+        // for the "is this language covered at all?" question.
+        let codes = Set(modelLanguages.compactMap { $0.languageCode?.identifier })
+        var result: Set<SourceLanguage> = [.english]
+        for language in SourceLanguage.allCases {
+            guard let code = language.localeLanguage?.languageCode?.identifier else { continue }
+            if codes.contains(code) { result.insert(language) }
+        }
+        return result
     }
 
     static var unavailableReason: String? {
@@ -94,8 +120,15 @@ struct UIStringRefiner {
     ) async -> [UUID: String] {
         guard Self.isAvailable, !items.isEmpty else { return [:] }
 
+        // Drop items in languages the on-device model doesn't recognise before
+        // they get near a prompt — otherwise Foundation Models logs
+        // "Unsupported language id detected" for the whole chunk.
+        let supported = Self.supportedSourceLanguages
+        let refinable = items.filter { supported.contains($0.sourceLanguage) }
+        guard !refinable.isEmpty else { return [:] }
+
         var refinements: [UUID: String] = [:]
-        for chunk in items.chunked(into: Self.chunkSize) {
+        for chunk in refinable.chunked(into: Self.chunkSize) {
             let session = LanguageModelSession(instructions: Self.instructions)
             let numbered = chunk.enumerated().map { index, item in
                 "\(index). original: \"\(item.source)\" | draft: \"\(item.translation)\""

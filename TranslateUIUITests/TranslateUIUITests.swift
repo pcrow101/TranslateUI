@@ -1,4 +1,4 @@
- //
+//
 //  TranslateUIUITests.swift
 //  TranslateUIUITests
 //
